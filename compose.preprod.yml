@@ -1,6 +1,7 @@
 services:
   web:
     build: .
+    image: ghcr.io/gaspard-tapon/php-todo/web:preprod
     environment:
       DB_HOST: ${DB_HOST}
       DB_NAME: ${DB_NAME}
