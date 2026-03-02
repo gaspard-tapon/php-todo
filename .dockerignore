@@ -4,3 +4,7 @@
 .gitignore
 compose.yml
 compose.prod.yml
+compose.preprod.yml
+tests/
+phpunit.xml
+src/vendor/
