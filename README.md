@@ -6,7 +6,9 @@ Application todo simple en PHP + MySQL, conçue comme tutoriel pour apprendre le
 
 - PHP 8.3 (Apache)
 - MySQL 8.0
-- PhpMyAdmin
+- Composer (autoload PSR-4, PHPUnit)
+- PhpMyAdmin (dev & pré-prod)
+- Docker + Docker Compose
 
 ## Lancer en dev
 
@@ -19,18 +21,47 @@ docker compose watch
 - App : http://localhost:8080
 - PhpMyAdmin : http://localhost:8888
 
+## Tests
+
+Les tests unitaires utilisent PHPUnit 11 avec SQLite en mémoire (pas besoin de MySQL).
+
+```bash
+# Installer les dépendances de test
+composer install --working-dir=src
+
+# Lancer les tests
+src/vendor/bin/phpunit --configuration phpunit.xml
+```
+
+Les tests tournent automatiquement en CI (GitHub Actions et GitLab CI) sur push vers la branche `test`.
+
 ## Structure
 
 ```
 .
-├── Dockerfile
-├── compose.yml          # Dev (avec docker watch)
-├── compose.prod.yml     # Prod (pour Dockploy)
-├── init.sql             # Schema de la base
+├── Dockerfile              # Image PHP 8.3 Apache + Composer
+├── compose.yml             # Dev (avec docker watch + PhpMyAdmin)
+├── compose.preprod.yml     # Pré-prod (avec PhpMyAdmin, sans ports exposés)
+├── compose.prod.yml        # Prod (sans PhpMyAdmin)
+├── init.sql                # Schéma de la base (table todos)
+├── phpunit.xml             # Configuration PHPUnit
 ├── src/
-│   └── index.php
-├── .env.example
-└── .env                 # Ignoré par git
+│   ├── composer.json       # Autoload PSR-4 + dépendances
+│   ├── index.php           # Point d'entrée (routage POST/GET)
+│   ├── classes/
+│   │   ├── Database.php    # Connexion PDO MySQL
+│   │   └── TodoRepository.php  # CRUD todos
+│   └── templates/
+│       ├── todos.php       # Template HTML
+│       └── style.css       # Styles
+├── tests/
+│   ├── bootstrap.php       # Setup SQLite pour les tests
+│   └── TodoRepositoryTest.php  # Tests unitaires du repository
+├── .github/workflows/
+│   └── tests.yml           # CI GitHub Actions
+├── .gitlab-ci.yml          # CI GitLab
+├── .env.example            # Variables d'environnement (template)
+└── .env                    # Variables d'environnement (ignoré par git)
 ```
 
 ## Variables d'environnement
