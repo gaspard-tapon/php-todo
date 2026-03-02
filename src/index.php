@@ -40,7 +40,7 @@ $todos = $pdo->query('SELECT * FROM todos ORDER BY created_at DESC')->fetchAll(P
         h1 { margin-bottom: 20px; color: #333; }
         .add-form { display: flex; gap: 8px; margin-bottom: 24px; }
         .add-form input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
-        .add-form button { padding: 10px 20px; background: #4a90d9; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        .add-form button { padding: 10px 20px; background: #d94a4a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
         .add-form button:hover { background: #357abd; }
         .todo { display: flex; align-items: center; gap: 10px; background: #fff; padding: 12px 16px; border-radius: 6px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .todo.done span { text-decoration: line-through; color: #999; }
