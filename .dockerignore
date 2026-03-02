@@ -1,0 +1,6 @@
+.env
+.env.example
+.git
+.gitignore
+compose.yml
+compose.prod.yml
