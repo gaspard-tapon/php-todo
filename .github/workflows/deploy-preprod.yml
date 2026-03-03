@@ -1,0 +1,114 @@
+# ===========================================================================
+# Pipeline CI/CD : Déploiement en Pré-production
+# ===========================================================================
+# Ce workflow exécute 3 jobs séquentiels :
+#   1. tests       → lance les tests PHPUnit
+#   2. build-and-push → construit l'image Docker et la pousse sur GHCR
+#   3. deploy      → appelle le webhook Dockploy pour déployer
+#
+# Déclenché par un push sur "pre-prod" ou manuellement via workflow_dispatch.
+# ===========================================================================
+
+name: Deploy Preprod
+
+# ---------------------------------------------------------------------------
+# Événements déclencheurs
+# ---------------------------------------------------------------------------
+on:
+  push:
+    branches: [pre-prod]
+  workflow_dispatch:
+
+# ---------------------------------------------------------------------------
+# Jobs : exécutés séquentiellement grâce au mot-clé "needs"
+# ---------------------------------------------------------------------------
+jobs:
+
+  # =========================================================================
+  # Job 1 : Tests
+  # =========================================================================
+  # Identique au workflow tests.yml — on s'assure que les tests passent
+  # AVANT de construire et déployer l'image.
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite
+
+      - name: Install dependencies
+        run: composer install --working-dir=src
+
+      - name: Run PHPUnit
+        run: src/vendor/bin/phpunit --configuration phpunit.xml
+
+  # =========================================================================
+  # Job 2 : Build & Push de l'image Docker sur GHCR
+  # =========================================================================
+  build-and-push:
+    # "needs: tests" → ce job ne démarre QUE si le job "tests" a réussi
+    # C'est ce qui crée la chaîne séquentielle : tests → build → deploy
+    needs: tests
+    runs-on: ubuntu-latest
+
+    # "permissions" : définit les droits du GITHUB_TOKEN pour ce job
+    # Par défaut le token a des droits limités, il faut explicitement
+    # demander "packages: write" pour pouvoir pousser sur GHCR
+    permissions:
+      contents: read     # lire le code du repo (pour le docker build)
+      packages: write    # écrire dans GitHub Container Registry (GHCR)
+
+    steps:
+      # On re-checkout le code car chaque job tourne sur un runner différent
+      # (les jobs ne partagent pas leur système de fichiers)
+      - uses: actions/checkout@v4
+
+      # Connexion à GHCR (GitHub Container Registry)
+      # - "registry: ghcr.io" : le registre d'images Docker de GitHub
+      # - "github.actor" : variable automatique = l'utilisateur qui a déclenché le workflow
+      # - "secrets.GITHUB_TOKEN" : token automatique fourni par GitHub Actions,
+      #   pas besoin de le configurer manuellement dans les secrets
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Construire l'image Docker à partir du Dockerfile et la pousser sur GHCR
+      # - "context: ." : le contexte de build est la racine du repo
+      # - "push: true" : pousse l'image après le build (sinon elle reste locale)
+      # - "tags" : le nom complet de l'image sur GHCR avec le tag "preprod"
+      #   Format : ghcr.io/<owner>/<repo>/<image>:<tag>
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/gaspard-tapon/php-todo/web:preprod
+
+  # =========================================================================
+  # Job 3 : Déploiement via webhook Dockploy
+  # =========================================================================
+  deploy:
+    # Ne démarre que si le build+push a réussi
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      # Appel HTTP au webhook Dockploy qui déclenche le re-pull de l'image
+      # et le redémarrage du conteneur en pré-production
+      # - "curl -sSf" :
+      #     -s = silent (pas de barre de progression)
+      #     -S = show errors (affiche les erreurs même en mode silent)
+      #     -f = fail (retourne un code d'erreur si HTTP >= 400, ce qui
+      #          fait échouer le step en cas de problème)
+      # - "${{ secrets.DOCKPLOY_WEBHOOK_PREPROD }}" : URL du webhook stockée
+      #   dans les secrets GitHub (Settings > Secrets and variables > Actions)
+      - name: Trigger Dockploy webhook
+        run: curl -sSf "${{ secrets.DOCKPLOY_WEBHOOK_PREPROD }}"

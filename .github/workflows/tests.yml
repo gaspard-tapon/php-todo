@@ -1,24 +1,65 @@
+# ===========================================================================
+# Pipeline CI : Tests uniquement
+# ===========================================================================
+# Ce workflow exécute les tests unitaires PHPUnit à chaque push sur la
+# branche "dev". Il peut aussi être lancé manuellement depuis l'onglet
+# Actions de GitHub grâce à "workflow_dispatch".
+# ===========================================================================
+
+# "name" : nom affiché dans l'onglet Actions de GitHub
 name: Tests
 
+# ---------------------------------------------------------------------------
+# "on" : définit les événements qui déclenchent ce workflow
+# ---------------------------------------------------------------------------
 on:
+  # Se déclenche automatiquement à chaque push sur la branche "dev"
   push:
-    branches: [test]
+    branches: [dev]
 
+  # Permet de lancer le workflow manuellement via le bouton "Run workflow"
+  # dans l'onglet Actions de GitHub (aucun paramètre supplémentaire ici)
+  workflow_dispatch:
+
+# ---------------------------------------------------------------------------
+# "jobs" : liste des jobs à exécuter
+# Un workflow peut contenir plusieurs jobs qui tournent en parallèle
+# par défaut, ou séquentiellement si on utilise "needs".
+# ---------------------------------------------------------------------------
 jobs:
-  phpunit:
+
+  # Job unique : exécuter les tests PHPUnit
+  tests:
+    # "runs-on" : type de machine virtuelle (runner) utilisée par GitHub
+    # "ubuntu-latest" = dernière version stable d'Ubuntu fournie par GitHub
     runs-on: ubuntu-latest
 
+    # "steps" : liste ordonnée des étapes à exécuter dans ce job
     steps:
+
+      # Étape 1 : Cloner le dépôt dans le runner
+      # "uses" permet d'utiliser une action pré-faite du marketplace GitHub
+      # "actions/checkout@v4" clone le code du repo dans le répertoire de travail
       - uses: actions/checkout@v4
 
+      # Étape 2 : Installer PHP 8.3 avec l'extension pdo_sqlite
+      # "shivammathur/setup-php" est une action communautaire très utilisée
+      # "with" permet de passer des paramètres à l'action
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
+          # pdo_sqlite est nécessaire pour les tests (base de données en mémoire)
           extensions: pdo_sqlite
 
+      # Étape 3 : Installer les dépendances PHP via Composer
+      # "run" exécute une commande shell directement sur le runner
+      # "--working-dir=src" indique à Composer que le composer.json est dans src/
       - name: Install dependencies
         run: composer install --working-dir=src
 
+      # Étape 4 : Lancer les tests unitaires avec PHPUnit
+      # Le binaire PHPUnit est installé par Composer dans src/vendor/bin/
+      # "--configuration phpunit.xml" pointe vers le fichier de config PHPUnit
       - name: Run PHPUnit
         run: src/vendor/bin/phpunit --configuration phpunit.xml

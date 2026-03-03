@@ -1,0 +1,90 @@
+# ===========================================================================
+# Pipeline CI/CD : Déploiement en Production
+# ===========================================================================
+# Ce workflow exécute 3 jobs séquentiels :
+#   1. tests       → lance les tests PHPUnit
+#   2. build-and-push → construit l'image Docker et la pousse sur GHCR
+#   3. deploy      → appelle le webhook Dockploy pour déployer
+#
+# Déclenché par un push sur "main" ou manuellement via workflow_dispatch.
+# ===========================================================================
+
+name: Deploy Prod
+
+# ---------------------------------------------------------------------------
+# Événements déclencheurs
+# ---------------------------------------------------------------------------
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ---------------------------------------------------------------------------
+# Jobs : exécutés séquentiellement grâce au mot-clé "needs"
+# ---------------------------------------------------------------------------
+jobs:
+
+  # =========================================================================
+  # Job 1 : Tests
+  # =========================================================================
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite
+
+      - name: Install dependencies
+        run: composer install --working-dir=src
+
+      - name: Run PHPUnit
+        run: src/vendor/bin/phpunit --configuration phpunit.xml
+
+  # =========================================================================
+  # Job 2 : Build & Push de l'image Docker sur GHCR
+  # =========================================================================
+  build-and-push:
+    # "needs: tests" → ce job attend que les tests soient passés avec succès
+    needs: tests
+    runs-on: ubuntu-latest
+
+    # Permissions nécessaires pour pousser l'image sur GHCR
+    permissions:
+      contents: read     # lire le code du repo
+      packages: write    # écrire sur GHCR
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Authentification auprès de GHCR avec le GITHUB_TOKEN automatique
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build + push de l'image avec le tag "prod"
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/gaspard-tapon/php-todo/web:prod
+
+  # =========================================================================
+  # Job 3 : Déploiement via webhook Dockploy
+  # =========================================================================
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      # Appel au webhook Dockploy pour déclencher le déploiement en production
+      - name: Trigger Dockploy webhook
+        run: curl -sSf "${{ secrets.DOCKPLOY_WEBHOOK_PROD }}"
